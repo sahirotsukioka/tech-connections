@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tech Connections</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- PWA 用 -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#020617" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+
+  <style>
+    /* ===== 背景：macOS Sonomaっぽいグラデーション ===== */
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: system-ui, -apple-system, "SF Pro Text", BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background:
+        radial-gradient(circle at 10% 20%, rgba(255, 163, 234, 0.55) 0, transparent 40%),
+        radial-gradient(circle at 80% 0%, rgba(125, 211, 252, 0.60) 0, transparent 45%),
+        radial-gradient(circle at 0% 80%, rgba(251, 191, 36, 0.55) 0, transparent 45%),
+        radial-gradient(circle at 90% 90%, rgba(248, 113, 113, 0.65) 0, transparent 55%),
+        radial-gradient(circle at 50% 50%, #020617 0, #020617 100%);
+      color: #f1f5f9;
+      box-sizing: border-box;
+    }
+
+    * {
+      box-sizing: inherit;
+    }
+
+    /* ===== 中央カード：iOS 17 ウィジェット風 ===== */
+    .app {
+      width: min(600px, 100%);
+      background: radial-gradient(circle at top left,
+                  rgba(255, 255, 255, 0.16),
+                  rgba(15, 23, 42, 0.9));
+      backdrop-filter: blur(26px);
+      -webkit-backdrop-filter: blur(26px);
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      box-shadow:
+        0 30px 80px rgba(15, 23, 42, 0.9),
+        inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+      padding: 18px 18px 20px;
+      color: #e5e7eb;
+    }
+
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.03em;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #9ca3af;
+      margin: 2px 0 6px;
+    }
+
+    .puzzle-meta {
+      font-size: 12px;
+      color: #cbd5f5;
+      margin-bottom: 10px;
+    }
+
+    .tag {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      color: #cbd5f5;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ===== ボード ===== */
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(90px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    /* ===== タイル（iOSガラス＋角丸24px） ===== */
+    .tile {
+      background: rgba(15, 23, 42, 0.55);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.45);
+      padding: 14px 10px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #f9fafb;
+      transition:
+        transform 0.14s ease-out,
+        border-color 0.14s ease-out,
+        background 0.14s ease-out,
+        box-shadow 0.14s ease-out,
+        opacity 0.14s ease-out;
+      box-shadow:
+        0 10px 26px rgba(15, 23, 42, 0.85),
+        0 0 0 0.5px rgba(15, 23, 42, 0.9);
+    }
+
+    .tile:hover {
+      transform: translateY(-1px);
+      border-color: rgba(248, 250, 252, 0.75);
+      background: rgba(30, 64, 175, 0.35);
+      box-shadow:
+        0 14px 34px rgba(15, 23, 42, 0.95),
+        0 0 0 0.5px rgba(191, 219, 254, 0.3);
+    }
+
+    .tile.selected {
+      background: rgba(0, 113, 227, 0.55); /* Apple Blue */
+      border-color: rgba(191, 219, 254, 0.9);
+      box-shadow:
+        0 16px 40px rgba(15, 23, 42, 0.95),
+        0 0 0 1px rgba(0, 113, 227, 0.85);
+      transform: translateY(-1px);
+    }
+
+    /* ロック共通 */
+    .tile.locked {
+      cursor: default;
+      opacity: 0.96;
+    }
+
+    /* グループごとの色（0〜3） */
+    .tile.locked.group-0 {
+      background: rgba(250, 204, 21, 0.75);   /* Yellow */
+      border-color: rgba(254, 240, 138, 0.95);
+      box-shadow:
+        0 14px 32px rgba(161, 98, 7, 0.7),
+        0 0 0 1px rgba(250, 204, 21, 0.9);
+    }
+
+    .tile.locked.group-1 {
+      background: rgba(34, 197, 94, 0.75);    /* Green */
+      border-color: rgba(187, 247, 208, 0.95);
+      box-shadow:
+        0 14px 32px rgba(21, 128, 61, 0.7),
+        0 0 0 1px rgba(34, 197, 94, 0.9);
+    }
+
+    .tile.locked.group-2 {
+      background: rgba(59, 130, 246, 0.8);    /* Blue */
+      border-color: rgba(191, 219, 254, 0.95);
+      box-shadow:
+        0 14px 32px rgba(30, 64, 175, 0.75),
+        0 0 0 1px rgba(59, 130, 246, 0.9);
+    }
+
+    .tile.locked.group-3 {
+      background: rgba(168, 85, 247, 0.8);    /* Purple */
+      border-color: rgba(233, 213, 255, 0.95);
+      box-shadow:
+        0 14px 32px rgba(109, 40, 217, 0.75),
+        0 0 0 1px rgba(168, 85, 247, 0.9);
+    }
+
+    /* ===== フッター（ボタン＋ステータス） ===== */
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: rgba(255, 255, 255, 0.16);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      padding: 7px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #f9fafb;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.88);
+      transition:
+        background 0.16s ease-out,
+        transform 0.12s ease-out,
+        box-shadow 0.16s ease-out,
+        border-color 0.16s ease-out;
+    }
+
+    .btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.26);
+      border-color: rgba(255, 255, 255, 0.65);
+      transform: translateY(-0.5px);
+      box-shadow: 0 14px 34px rgba(15, 23, 42, 0.92);
+    }
+
+    .btn:active:not(:disabled) {
+      transform: translateY(0);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.8);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: rgba(15, 23, 42, 0.6);
+      border-color: rgba(148, 163, 184, 0.7);
+      color: #e5e7eb;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(15, 23, 42, 0.8);
+      border-color: rgba(226, 232, 240, 0.9);
+    }
+
+    .status {
+      font-size: 12px;
+      color: #e5e7eb;
+      min-height: 1.2em;
+    }
+
+    .status.ok {
+      color: #4ade80;
+    }
+
+    .status.err {
+      color: #f97373;
+    }
+
+    .groups-view {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #cbd5f5;
+    }
+
+    .groups-view-title {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .groups-view ul {
+      margin: 4px 0 0;
+      padding-left: 16px;
+    }
+
+    /* ===== スコアカード（ウィジェット風） ===== */
+    .score-card {
+      margin-top: 12px;
+      padding: 10px 12px 12px;
+      border-radius: 18px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(148, 163, 184, 0.7);
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.8);
+      display: none;
+    }
+
+    .score-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .score-title {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .score-sub {
+      font-size: 12px;
+      color: #cbd5f5;
+    }
+
+    .score-body {
+      margin-top: 6px;
+      font-size: 12px;
+    }
+
+    .score-label {
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+
+    .score-order {
+      line-height: 1.4;
+      white-space: pre-line;
+    }
+
+    .score-share-btn {
+      margin-top: 8px;
+      font-size: 12px;
+      padding: 5px 14px;
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 12px;
+      }
+      .app {
+        padding: 14px 12px 16px;
+        border-radius: 22px;
+      }
+      .board {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="app-header">
+      <div>
+        <h1 id="appTitle">Tech Connections</h1>
+        <p id="subtitle" class="subtitle"></p>
+        <div id="meta" class="puzzle-meta"></div>
+      </div>
+      <div class="tag">
+        <span></span><span>Tech Connections</span>
+      </div>
+    </div>
+
+    <div class="board" id="board"></div>
+
+    <div class="footer">
+      <div class="btn-row">
+        <button id="checkBtn" class="btn">
+          ✓ グループチェック
+        </button>
+        <button id="resetBtn" class="btn btn-secondary">
+          ↻ リセット（並び替え）
+        </button>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="groups-view" id="groupsView"></div>
+
+    <!-- スコアカード（クリア後に表示） -->
+    <div class="score-card" id="scoreCard" aria-hidden="true">
+      <div class="score-header">
+        <div class="score-title" id="scoreTitle">今日の問題</div>
+        <div class="score-sub" id="scoreTime">クリア時間: --</div>
+      </div>
+      <div class="score-body">
+        <div class="score-label">正解順</div>
+        <div class="score-order" id="scoreOrder"></div>
+      </div>
+      <button id="shareBtn" class="btn btn-secondary score-share-btn">
+        画像としてシェア用に保存
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ===== 1) パズル定義（日本語＆Podcast） =====
+    var PUZZLES = [
+      {
+        id: "apple_history",
+        title: "Apple ＆ ストレージの歴史",
+        subtitle: "Apple製品と保存メディアの変遷。",
+        groups: [
+          {
+            name: "初期Apple製品（80〜90年代）",
+            items: ["Lisa", "Macintosh", "Newton", "iMac"]
+          },
+          {
+            name: "モダンAppleハードウェアライン",
+            items: ["iPod", "iPhone", "Watch", "Vision Pro"]
+          },
+          {
+            name: "Appleあるある命名",
+            items: ["Pro", "Mini", "Air", "Plus"]
+          },
+          {
+            name: "保存メディアの時代",
+            items: ["Floppy", "CD-ROM", "Disk", "iCloud"]
+          }
+        ]
+      },
+      {
+        id: "podcast_production",
+        title: "ポッドキャスト制作セット",
+        subtitle: "収録・編集・配信まわりの用語。",
+        groups: [
+          {
+            name: "収録・編集ソフト",
+            items: ["Logic Pro", "GarageBand", "Audition", "DaVinci Resolve"]
+          },
+          {
+            name: "配信プラットフォーム",
+            items: ["Spotify", "Apple Podcasts", "YouTube", "Amazon Music"]
+          },
+          {
+            name: "マイク・機材まわり",
+            items: ["ダイナミックマイク", "コンデンサーマイク", "オーディオインターフェース", "ポップガード"]
+          },
+          {
+            name: "番組運営キーワード",
+            items: ["台本", "ショーノート", "チャプター", "サムネイル"]
+          }
+        ]
+      },
+      {
+        id: "tech_news_podcast",
+        title: "テックニュース＆ガジェット",
+        subtitle: "ニュース系ポッドキャストに出てきそうなもの。",
+        groups: [
+          {
+            name: "ニュース系テックメディア",
+            items: ["The Verge", "TechCrunch", "WIRED", "Engadget"]
+          },
+          {
+            name: "ガジェットカテゴリ",
+            items: ["スマートフォン", "スマートウォッチ", "ARヘッドセット", "完全ワイヤレスイヤホン"]
+          },
+          {
+            name: "収録スタイル",
+            items: ["リモート収録", "スタジオ収録", "ライブ配信", "ソロトーク"]
+          },
+          {
+            name: "コミュニティの場",
+            items: ["Discord", "YouTubeメンバーシップ", "Patreon", "ニュースレター"]
+          }
+        ]
+      }
+    ];
+
+    // ===== 2) 今日のパズルを選ぶ（1日1問） =====
+    function getTodayPuzzle() {
+      var today = new Date();
+      var n =
+        today.getFullYear() * 10000 +
+        (today.getMonth() + 1) * 100 +
+        today.getDate();
+      var index = n % PUZZLES.length;
+      return PUZZLES[index];
+    }
+
+    var CURRENT_PUZZLE = getTodayPuzzle();
+
+    // ===== 3) DOM取得 =====
+    var boardEl = document.getElementById("board");
+    var statusEl = document.getElementById("status");
+    var checkBtn = document.getElementById("checkBtn");
+    var resetBtn = document.getElementById("resetBtn");
+    var subtitleEl = document.getElementById("subtitle");
+    var metaEl = document.getElementById("meta");
+    var groupsViewEl = document.getElementById("groupsView");
+
+    var scoreCardEl = document.getElementById("scoreCard");
+    var scoreTitleEl = document.getElementById("scoreTitle");
+    var scoreTimeEl = document.getElementById("scoreTime");
+    var scoreOrderEl = document.getElementById("scoreOrder");
+    var shareBtn = document.getElementById("shareBtn");
+
+    // ===== 4) 状態 =====
+    var words = [];
+    var selected = [];
+    var lockedWords = {}; // word -> groupIndex (0〜3)
+    var solvedGroups = {}; // name -> true
+    var solveOrder = [];   // 正解順にグループ名を格納
+    var startTime = null;
+    var endTime = null;
+    var todayLabel = "";
+
+    // ===== 5) 初期化 =====
+    function initPuzzle() {
+      subtitleEl.textContent = CURRENT_PUZZLE.subtitle;
+
+      var today = new Date();
+      var yyyy = today.getFullYear();
+      var mm = String(today.getMonth() + 1);
+      if (mm.length < 2) mm = "0" + mm;
+      var dd = String(today.getDate());
+      if (dd.length < 2) dd = "0" + dd;
+      todayLabel = yyyy + "/" + mm + "/" + dd;
+      metaEl.textContent = "今日のお題：" + todayLabel + " – 全4グループ";
+
+      // wordsを作ってシャッフル
+      words = [];
+      for (var i = 0; i < CURRENT_PUZZLE.groups.length; i++) {
+        var g = CURRENT_PUZZLE.groups[i];
+        for (var j = 0; j < g.items.length; j++) {
+          words.push(g.items[j]);
+        }
+      }
+      words = shuffle(words);
+
+      // 状態リセット
+      selected = [];
+      lockedWords = {};
+      solvedGroups = {};
+      solveOrder = [];
+      startTime = Date.now();
+      endTime = null;
+
+      statusEl.textContent = "4枚ずつ選んで、グループチェックを押してみてください。";
+      statusEl.className = "status";
+
+      // スコアカード非表示
+      scoreCardEl.style.display = "none";
+      scoreCardEl.setAttribute("aria-hidden", "true");
+      scoreTitleEl.textContent = "今日の問題";
+      scoreTimeEl.textContent = "クリア時間: --";
+      scoreOrderEl.textContent = "";
+
+      renderGroupsPreview();
+      renderBoard();
+    }
+
+    // ===== 6) ボード描画（ロック＆順番反映） =====
+    function renderBoard() {
+      boardEl.innerHTML = "";
+
+      for (var k = 0; k < words.length; k++) {
+        var word = words[k];
+        var div = document.createElement("div");
+        div.className = "tile";
+        div.textContent = word;
+        div.setAttribute("data-word", word);
+
+        if (lockedWords[word] !== undefined) {
+          div.classList.add("locked");
+          div.classList.add("group-" + lockedWords[word]);
+        } else {
+          div.addEventListener("click", onTileClick);
+        }
+
+        boardEl.appendChild(div);
+      }
+    }
+
+    // ===== 7) タイルクリック =====
+    function onTileClick(event) {
+      var tile = event.currentTarget;
+      var word = tile.getAttribute("data-word");
+      if (lockedWords[word] !== undefined) {
+        return;
+      }
+
+      if (tile.classList.contains("selected")) {
+        tile.classList.remove("selected");
+        selected = selected.filter(function (w) {
+          return w !== word;
+        });
+      } else {
+        if (selected.length >= 4) {
+          return;
+        }
+        tile.classList.add("selected");
+        selected.push(word);
+      }
+
+      statusEl.textContent = "";
+      statusEl.className = "status";
+    }
+
+    // ===== 8) グループチェック =====
+    checkBtn.addEventListener("click", function () {
+      var count = selected.length;
+      if (count === 0) {
+        statusEl.textContent = "まず4枚選んでください。";
+        statusEl.className = "status err";
+        return;
+      }
+      if (count !== 4) {
+        statusEl.textContent =
+          "今選択されているカードは " +
+          count +
+          " 枚です（4枚ずつ試してください）。";
+        statusEl.className = "status err";
+        return;
+      }
+
+      var group = findMatchingGroup(selected);
+      if (!group) {
+        statusEl.textContent = "その4枚は同じグループではないようです。";
+        statusEl.className = "status err";
+        clearSelection(true);
+        return;
+      }
+
+      if (solvedGroups[group.name]) {
+        statusEl.textContent =
+          "そのグループはすでに完成しています。";
+        statusEl.className = "status err";
+        clearSelection(true);
+        return;
+      }
+
+      statusEl.textContent = "正解！「" + group.name + "」";
+      statusEl.className = "status ok";
+      solvedGroups[group.name] = true;
+      solveOrder.push(group.name); // 正解順に追加
+
+      lockGroup(selected, group);   // グループ情報つきでロック
+      clearSelection(false);
+
+      var solvedCount = 0;
+      for (var key in solvedGroups) {
+        if (solvedGroups.hasOwnProperty(key) && solvedGroups[key]) {
+          solvedCount++;
+        }
+      }
+      if (solvedCount === CURRENT_PUZZLE.groups.length) {
+        statusEl.textContent = "🎉 コンプリート！全グループ正解です。";
+        statusEl.className = "status ok";
+        endTime = Date.now();
+        showScoreCard();
+      }
+    });
+
+    function findMatchingGroup(selectedWords) {
+      for (var i = 0; i < CURRENT_PUZZLE.groups.length; i++) {
+        var g = CURRENT_PUZZLE.groups[i];
+        var items = g.items;
+        if (items.length !== selectedWords.length) {
+          continue;
+        }
+        var allMatch = true;
+        for (var j = 0; j < items.length; j++) {
+          if (selectedWords.indexOf(items[j]) === -1) {
+            allMatch = false;
+            break;
+          }
+        }
+        if (allMatch) {
+          return g;
+        }
+      }
+      return null;
+    }
+
+    // ===== 9) グループをロックして上に並べ替える＋色付け =====
+    function lockGroup(wordsToLock, group) {
+      // このグループが何番目か（0〜3）を調べる
+      var groupIndex = -1;
+      for (var gi = 0; gi < CURRENT_PUZZLE.groups.length; gi++) {
+        if (CURRENT_PUZZLE.groups[gi].name === group.name) {
+          groupIndex = gi;
+          break;
+        }
+      }
+
+      // ロックマップに「グループ番号」を保存
+      for (var i = 0; i < wordsToLock.length; i++) {
+        var word = wordsToLock[i];
+        lockedWords[word] = groupIndex;
+      }
+
+      // 解けたグループの単語を上に集める
+      var solvedWordsInOrder = [];
+      for (var gi2 = 0; gi2 < CURRENT_PUZZLE.groups.length; gi2++) {
+        var g = CURRENT_PUZZLE.groups[gi2];
+        if (solvedGroups[g.name]) {
+          for (var jj = 0; jj < g.items.length; jj++) {
+            solvedWordsInOrder.push(g.items[jj]);
+          }
+        }
+      }
+
+      // まだの単語
+      var remaining = [];
+      for (var wi = 0; wi < words.length; wi++) {
+        var w = words[wi];
+        if (solvedWordsInOrder.indexOf(w) === -1) {
+          remaining.push(w);
+        }
+      }
+
+      // 新しい並び順に差し替え＆再描画
+      words = solvedWordsInOrder.concat(remaining);
+      renderBoard();
+    }
+
+    function clearSelection(removeClass) {
+      if (removeClass) {
+        for (var i = 0; i < selected.length; i++) {
+          var word = selected[i];
+          var tile = findTile(word);
+          if (tile) {
+            tile.classList.remove("selected");
+          }
+        }
+      }
+      selected = [];
+    }
+
+    function findTile(word) {
+      return boardEl.querySelector('.tile[data-word="' + word + '"]');
+    }
+
+    // ===== 10) リセットボタン =====
+    resetBtn.addEventListener("click", function () {
+      initPuzzle();
+      statusEl.textContent = "ボードをリセットしました。4枚ずつ試してみてください。";
+      statusEl.className = "status";
+    });
+
+    // ===== 11) グループ名プレビュー（ヒント） =====
+    function renderGroupsPreview() {
+      var html = '<div class="groups-view-title">グループ名（ヒント）</div><ul>';
+      for (var i = 0; i < CURRENT_PUZZLE.groups.length; i++) {
+        html += "<li>" + CURRENT_PUZZLE.groups[i].name + "</li>";
+      }
+      html += "</ul>";
+      groupsViewEl.innerHTML = html;
+    }
+
+    // ===== 12) スコアカード表示 =====
+    function showScoreCard() {
+      if (!endTime || !startTime) return;
+
+      var durationMs = endTime - startTime;
+      var totalSec = Math.floor(durationMs / 1000);
+      var minutes = Math.floor(totalSec / 60);
+      var seconds = totalSec % 60;
+      var secStr = seconds < 10 ? "0" + seconds : "" + seconds;
+      var timeText;
+      if (minutes > 0) {
+        timeText = minutes + "分" + secStr + "秒";
+      } else {
+        timeText = seconds + "秒";
+      }
+
+      scoreTitleEl.textContent = "Tech Connections – " + todayLabel;
+      scoreTimeEl.textContent = "クリア時間: " + timeText;
+
+      var lines = [];
+      for (var i = 0; i < solveOrder.length; i++) {
+        lines.push((i + 1) + ". " + solveOrder[i]);
+      }
+      scoreOrderEl.textContent = lines.join("\n");
+
+      scoreCardEl.style.display = "block";
+      scoreCardEl.setAttribute("aria-hidden", "false");
+    }
+
+    // ===== 13) シェア用画像生成（PNGダウンロード） =====
+    shareBtn.addEventListener("click", function () {
+      if (!endTime) {
+        return;
+      }
+
+      var canvas = document.createElement("canvas");
+      canvas.width = 800;
+      canvas.height = 418;
+      var ctx = canvas.getContext("2d");
+
+      // 背景グラデーション
+      var grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      grad.addColorStop(0, "#020617");
+      grad.addColorStop(0.5, "#1e293b");
+      grad.addColorStop(1, "#0f172a");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // アクセント丸
+      var radial = ctx.createRadialGradient(650, 60, 20, 650, 60, 180);
+      radial.addColorStop(0, "rgba(96, 165, 250, 0.9)");
+      radial.addColorStop(1, "rgba(15, 23, 42, 0)");
+      ctx.fillStyle = radial;
+      ctx.beginPath();
+      ctx.arc(650, 60, 180, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#e5e7eb";
+      ctx.font = "22px -apple-system, system-ui, sans-serif";
+      ctx.fillText("Tech Connections – " + todayLabel, 40, 60);
+
+      ctx.font = "24px -apple-system, system-ui, sans-serif";
+      ctx.fillText(CURRENT_PUZZLE.title, 40, 100);
+
+      // クリア時間
+      var durationMs = endTime - startTime;
+      var totalSec = Math.floor(durationMs / 1000);
+      var minutes = Math.floor(totalSec / 60);
+      var seconds = totalSec % 60;
+      var secStr = seconds < 10 ? "0" + seconds : "" + seconds;
+      var timeText;
+      if (minutes > 0) {
+        timeText = minutes + "分" + secStr + "秒";
+      } else {
+        timeText = seconds + "秒";
+      }
+
+      ctx.font = "18px -apple-system, system-ui, sans-serif";
+      ctx.fillStyle = "#bfdbfe";
+      ctx.fillText("クリア時間: " + timeText, 40, 140);
+
+      // 正解順
+      ctx.fillStyle = "#e5e7eb";
+      ctx.font = "16px -apple-system, system-ui, sans-serif";
+      ctx.fillText("正解順:", 40, 180);
+
+      ctx.font = "15px -apple-system, system-ui, sans-serif";
+      var y = 210;
+      for (var i = 0; i < solveOrder.length; i++) {
+        ctx.fillText((i + 1) + ". " + solveOrder[i], 60, y);
+        y += 26;
+      }
+
+      ctx.font = "13px -apple-system, system-ui, sans-serif";
+      ctx.fillStyle = "#9ca3af";
+      ctx.fillText("Generated with Tech Connections", 40, canvas.height - 30);
+
+      var dataUrl = canvas.toDataURL("image/png");
+      var link = document.createElement("a");
+      link.href = dataUrl;
+      link.download = "tech-connections-score.png";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+
+    // ===== 14) シャッフル関数 =====
+    function shuffle(arr) {
+      var a = arr.slice();
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = a[i];
+        a[i] = a[j];
+        a[j] = temp;
+      }
+      return a;
+    }
+
+    // ===== 15) Service Worker 登録（PWA用） =====
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker
+          .register("service-worker.js")
+          .catch(function (err) {
+            console.log("SW registration failed:", err);
+          });
+      });
+    }
+
+    // 初期化
+    initPuzzle();
+  </script>
+</body>
+</html>
+
